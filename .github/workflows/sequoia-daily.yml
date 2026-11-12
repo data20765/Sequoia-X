@@ -19,7 +19,7 @@ concurrency:
 jobs:
   daily:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 120
     env:
       # 用户没有飞书机器人：占位地址，推送失败只记日志，不影响选股；
       # 选股结果以 results/*.json 形式随 artifact 下载。
@@ -49,20 +49,20 @@ jobs:
 
       - name: 回填历史数据（强制）
         if: ${{ inputs.force_backfill == true }}
-        run: .venv/bin/python main.py --backfill
+        run: .venv/bin/python -u main.py --backfill
 
       - name: 回填历史数据（数据库缺失时自动）
         if: ${{ inputs.force_backfill != true }}
         run: |
           if [ ! -s data/sequoia_v2.db ]; then
             echo "数据库不存在，开始回填"
-            .venv/bin/python main.py --backfill
+            .venv/bin/python -u main.py --backfill
           else
             echo "数据库已存在，跳过回填"
           fi
 
       - name: 日常选股
-        run: .venv/bin/python main.py 2>&1 | tee sequoia_run.log
+        run: .venv/bin/python -u main.py 2>&1 | tee sequoia_run.log
 
       - name: 保存数据库缓存
         if: always()
