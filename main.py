@@ -6,11 +6,14 @@
 """
 
 import argparse
+import json
 import sys
-from dotenv import load_dotenv
-load_dotenv()
-
 from datetime import date
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import socket
 socket.setdefaulttimeout(10.0)
@@ -76,12 +79,14 @@ def main() -> None:
         notifier = FeishuNotifier(settings)
 
         # 5. 遍历策略，有结果则推送至对应机器人
+        all_results: dict[str, list[str]] = {}
         for strategy in strategies:
             strategy_name = type(strategy).__name__
             logger.info(f"执行策略：{strategy_name}")
 
             selected: list[str] = strategy.run()
             logger.info(f"{strategy_name} 选出 {len(selected)} 只股票")
+            all_results[strategy_name] = selected
 
             if selected:
                 notifier.send(
@@ -91,6 +96,20 @@ def main() -> None:
                 )
             else:
                 logger.info(f"{strategy_name} 无选股结果，跳过推送")
+
+        # 6. 落盘选股结果，供 GitHub Actions artifact 下载
+        out_dir = Path("results")
+        out_dir.mkdir(exist_ok=True)
+        out_path = out_dir / f"selected_{date.today().strftime('%Y%m%d')}.json"
+        out_path.write_text(
+            json.dumps(
+                {"date": date.today().strftime("%Y-%m-%d"), "strategies": all_results},
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        logger.info(f"选股结果已写入 {out_path}")
 
     except Exception:
         try:
