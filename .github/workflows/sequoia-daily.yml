@@ -69,17 +69,21 @@ jobs:
           fi
 
       - name: 日常选股
-        run: .venv/bin/python -u main.py
+        run: .venv/bin/python -u main.py 2>&1 | tee sequoia_run.log
 
       - name: 保存数据库缓存
+        if: always()
         uses: actions/cache/save@v4
         with:
           path: data/sequoia_v2.db
           key: sequoia-db-${{ github.run_id }}
 
       - name: 上传选股结果
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: results-${{ github.run_number }}
-          path: results/
+          name: sequoia-results-${{ github.run_number }}
+          path: |
+            results/
+            sequoia_run.log
           if-no-files-found: warn
