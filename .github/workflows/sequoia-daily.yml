@@ -51,32 +51,35 @@ jobs:
         if: ${{ inputs.force_backfill == true }}
         run: .venv/bin/python -u main.py --backfill
 
-      - name: 回填历史数据（数据库缺失时自动）
+      - name: 回填历史数据（数据库缺失或不完整时自动）
         if: ${{ inputs.force_backfill != true }}
         run: |
           if [ ! -s data/sequoia_v2.db ]; then
             echo "数据库不存在，开始回填"
             .venv/bin/python -u main.py --backfill
           else
-            echo "数据库已存在，跳过回填"
+            COUNT=$(.venv/bin/python -c "import sqlite3; print(sqlite3.connect('data/sequoia_v2.db').execute('SELECT COUNT(DISTINCT symbol) FROM stock_daily').fetchone()[0])")
+            echo "数据库已有 $COUNT 只股票"
+            if [ "$COUNT" -lt 5000 ]; then
+              echo "数据库不完整，继续回填（已入库的自动跳过）"
+              .venv/bin/python -u main.py --backfill
+            else
+              echo "数据库完整，跳过回填"
+            fi
           fi
 
       - name: 日常选股
-        run: .venv/bin/python -u main.py 2>&1 | tee sequoia_run.log
+        run: .venv/bin/python -u main.py
 
       - name: 保存数据库缓存
-        if: always()
         uses: actions/cache/save@v4
         with:
           path: data/sequoia_v2.db
           key: sequoia-db-${{ github.run_id }}
 
       - name: 上传选股结果
-        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sequoia-results-${{ github.run_number }}
-          path: |
-            results/
-            sequoia_run.log
+          name: results-${{ github.run_number }}
+          path: results/
           if-no-files-found: warn
